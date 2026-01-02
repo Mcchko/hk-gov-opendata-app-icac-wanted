@@ -6,8 +6,6 @@
     <title>「ICAC主要被通緝人士」查詢系統</title>
     <!-- Awesome Icon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" />
-    <!-- Leaflet CSS for Map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         .element-hidden {
             display: none !important;
@@ -161,21 +159,6 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
             overflow-y: auto;
             min-height: 0;
-        }
-        .map-section {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 16px;
-            padding: 0;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        #map {
-            width: 100%;
-            height: 360px;
-            border-radius: 16px;
         }
         /* Data Section Styles */
         .data-header {
@@ -387,31 +370,6 @@
                 transform: rotate(360deg);
             }
         }
-        /* Map Marker Styles */
-        .map-marker-red {
-            background-color: #c41e3a;
-            border: 2px solid #8b0000;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-        }
-        .map-popup {
-            font-family: 'Inter', sans-serif;
-        }
-        .map-popup-title {
-            font-weight: 700;
-            color: #111827;
-            margin-bottom: 5px;
-            font-size: 1.1rem;
-        }
-        .map-popup-charge {
-            color: #c41e3a;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        .map-popup-info {
-            margin-top: 8px;
-        }
         /* Footer */
         .footer {
             text-align: center;
@@ -582,9 +540,6 @@
             </div>
         </section>
         <main class="main-content">
-            <section class="map-section">
-                <div id="map"></div>
-            </section>
             <section class="data-section">
                 <div class="data-header">
                     <h2>被通緝人士列表</h2>
@@ -616,11 +571,9 @@
             <p>「ICAC主要被通緝人士」查詢系統<br/>資料來源: 香港廉政公署</p>
         </footer>
     </div>
-    <!-- Leaflet JS for Map -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const PROXY_URL = 'https://cors-anywhere.herokuapp.com';
-        const DATA_URL = `${PROXY_URL}/https://www.icac.org.hk/datagovhk/opendata/ops/wanted_person/icac_wanted_person_tc.csv`;
+        const DATA_URL = `https://www.icac.org.hk/datagovhk/opendata/ops/wanted_person/icac_wanted_person_tc.csv`;
         
         // IndexedDB 配置
         const DB_NAME = 'icac-wanted-db';
@@ -631,8 +584,6 @@
         let wantedPersonsData = [];
         let filteredData = [];
         let db;
-        let map;
-        let markers = [];
         let activePerson = null;
         let currentGroupId = 0;
         
@@ -672,7 +623,6 @@
         
         // 初始化應用
         document.addEventListener('DOMContentLoaded', function () {
-            initMap();
             initIndexedDB();
             
             // 為搜尋輸入框添加 Enter 鍵支援
@@ -682,19 +632,6 @@
                 }
             });
         });
-        
-        // 初始化地圖
-        function initMap() {
-            // 香港中心坐標
-            const hkCenter = [22.3193, 114.1694];
-            map = L.map('map').setView(hkCenter, 11);
-            
-            // 添加OpenStreetMap圖層
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                maxZoom: 19
-            }).addTo(map);
-        }
         
         // 初始化 IndexedDB
         function initIndexedDB() {
@@ -777,7 +714,7 @@
             `;
             
             try {
-                const response = await fetch(DATA_URL);
+                const response = await fetch(`${PROXY_URL}/${DATA_URL}`);
                 if (!response.ok) {
                     container.innerHTML = `
                         <div class="no-data">
@@ -853,10 +790,6 @@
                     
                     // 為每個人生成唯一 ID
                     person.id = `person-${i}-${Date.now()}`;
-                    
-                    // 生成隨機坐標（用於地圖顯示）
-                    person.latitude = 22.25 + Math.random() * 0.2; // 香港緯度範圍
-                    person.longitude = 114.1 + Math.random() * 0.3; // 香港經度範圍
                     
                     processedData.push(person);
                 }
@@ -938,7 +871,6 @@
             filteredData = [...wantedPersonsData];
             updateStatistics();
             updateWantedPersonsList();
-            updateMapMarkers();
             showNotification('已重置所有篩選條件', 'info');
         }
         
@@ -950,7 +882,6 @@
                 filteredData = [...wantedPersonsData];
                 updateStatistics();
                 updateWantedPersonsList();
-                updateMapMarkers();
                 showNotification(`已顯示所有 ${wantedPersonsData.length} 筆通緝人士資料`, 'info');
             }
         }
@@ -978,7 +909,6 @@
             
             updateStatistics();
             updateWantedPersonsList();
-            updateMapMarkers();
             
             if (filteredData.length === 0) {
                 showNotification('未找到符合搜尋條件的通緝人士', 'info');
@@ -1285,6 +1215,10 @@
             // 移除所有活躍狀態
             document.querySelectorAll('.wanted-item').forEach(item => {
                 item.classList.remove('active');
+                const details = item.querySelector('.wanted-details');
+                if (details && item.dataset.id !== personId) {
+                    details.remove();
+                }
             });
             
             // 添加當前活躍狀態
@@ -1298,84 +1232,9 @@
                 }
             }
             
-            // 更新地圖標記
-            updateMapMarkers(person);
-            
             // 滾動到選中的項目
             item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             activePerson = person;
-        }
-        
-        // 更新地圖標記
-        function updateMapMarkers(highlightPerson = null) {
-            // 清除現有標記
-            markers.forEach(marker => map.removeLayer(marker));
-            markers = [];
-            
-            if (filteredData.length === 0) return;
-            
-            // 添加新標記
-            filteredData.forEach(person => {
-                const lat = person.latitude;
-                const lng = person.longitude;
-                
-                if (isNaN(lat) || isNaN(lng)) return;
-                
-                const isHighlighted = highlightPerson && highlightPerson.id === person.id;
-                
-                // 創建自定義圖標
-                const icon = L.divIcon({
-                    className: 'map-marker-red',
-                    html: '<i class="fas fa-user-secret" style="color: white; font-size: 10px; line-height: 20px; text-align: center; width: 100%;"></i>',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                });
-                
-                const marker = L.marker([lat, lng], {
-                    title: person.姓名,
-                    icon: icon
-                }).addTo(map);
-                
-                // 創建彈出視窗內容
-                const popupContent = `
-                    <div class="map-popup">
-                        <div class="map-popup-title">
-                            <i class="fas fa-user" style="margin-right: 5px;"></i>
-                            ${person.姓名 || '姓名不詳'}
-                        </div>
-                        <div class="map-popup-charge">
-                            <i class="fas fa-gavel" style="margin-right: 5px;"></i>
-                            ${person.控罪 || '控罪不詳'}
-                        </div>
-                        <div class="map-popup-info">
-                            <div><strong>職業:</strong> ${person.職業 || '不詳'}</div>
-                            <div><strong>出生日期:</strong> ${person.出生日期 || '不詳'}</div>
-                            <div><strong>身高/體重:</strong> ${person.身高 || '不詳'} / ${person.體重 || '不詳'}</div>
-                        </div>
-                    </div>
-                `;
-                
-                marker.bindPopup(popupContent);
-                
-                // 點擊事件
-                marker.on('click', function() {
-                    selectWantedPerson(person.id);
-                });
-                
-                // 如果是高亮的標記，則打開彈出視窗
-                if (isHighlighted) {
-                    marker.openPopup();
-                    map.setView([lat, lng], 15);
-                }
-                
-                markers.push(marker);
-            });
-            
-            // 如果沒有高亮標記，調整地圖視圖以顯示所有標記
-            if (!highlightPerson && markers.length > 0) {
-                const markerGroup = L.featureGroup(markers);
-                map.fitBounds(markerGroup.getBounds().pad(0.1));
-            }
         }
         
         // 顯示通知
@@ -1407,7 +1266,7 @@
         // 初始化教程
         if (!localStorage.getItem('icacWantedTutorialShown')) {
             setTimeout(() => {
-                alert("歡迎使用「ICAC主要被通緝人士」查詢系統！\n\n• 點擊「載入通緝資料」按鈕下載最新通緝人士資料\n• 可根據姓名、別名、控罪、職業進行搜尋和篩選\n• 地圖顯示通緝人士位置（隨機生成），點擊標記可查看詳細資訊\n• 資料會自動緩存在瀏覽器中，下次使用無需重新下載\n• 點擊通緝人士姓名可展開查看所有詳細資訊\n• 資料來源：香港廉政公署");
+                alert("歡迎使用「ICAC主要被通緝人士」查詢系統！\n\n• 點擊「載入通緝資料」按鈕下載最新通緝人士資料\n• 可根據姓名、別名、控罪、職業進行搜尋和篩選\n• 資料會自動緩存在瀏覽器中，下次使用無需重新下載\n• 點擊通緝人士姓名可展開查看所有詳細資訊\n• 資料來源：香港廉政公署");
                 localStorage.setItem('icacWantedTutorialShown', 'true');
             }, 1000);
         }
